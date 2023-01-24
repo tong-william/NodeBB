@@ -1,17 +1,47 @@
-'use strict';
+import user from '../user';
+import db from '../database';
 
-const user = require('../user');
-const db = require('../database');
+interface BigGroups {
+    search ;
+    sort ;
+    BANNED_USERS : string;
+    ephemeralGroups ;
+    isPrivilegeGroup : (string) => boolean;
+    getGroupsAndMembers : (string) => (string[]);
+    getGroupsData : (string) => (string[]);
+    searchMembers ;
+    getOwnersAndMembers ;
+    ownership ;
+}
 
-module.exports = function (Groups) {
-    Groups.search = async function (query, options) {
+interface GroupOptions {
+    hideEphemeralGroups ;
+    showMembers ;
+    filterHidden ;
+    sort ;
+}
+
+interface GroupGroups {
+    sort ;
+}
+
+interface GroupData {
+    query : string;
+    groupName : string;
+    uid : number;
+}
+
+export default function (Groups : BigGroups) {
+    Groups.search = async function (query : string, options : GroupOptions) {
         if (!query) {
             return [];
         }
         query = String(query).toLowerCase();
-        let groupNames = await db.getSortedSetRange('groups:createtime', 0, -1);
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+        let groupNames : string[] = await db.getSortedSetRange('groups:createtime', 0, -1) as string[];
         if (!options.hideEphemeralGroups) {
-            groupNames = Groups.ephemeralGroups.concat(groupNames);
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+            groupNames = Groups.ephemeralGroups.concat(groupNames) as string[];
         }
         groupNames = groupNames.filter(name => name.toLowerCase().includes(query) &&
             name !== Groups.BANNED_USERS && // hide banned-users in searches
@@ -20,18 +50,18 @@ module.exports = function (Groups) {
 
         let groupsData;
         if (options.showMembers) {
-            groupsData = await Groups.getGroupsAndMembers(groupNames);
+            groupsData = await Promise.resolve(Groups.getGroupsAndMembers(groupNames));
         } else {
-            groupsData = await Groups.getGroupsData(groupNames);
+            groupsData = await Promise.resolve(Groups.getGroupsData(groupNames));
         }
-        groupsData = groupsData.filter(Boolean);
+        groupsData = groupsData.filter(Boolean) as string[];
         if (options.filterHidden) {
             groupsData = groupsData.filter(group => !group.hidden);
         }
         return Groups.sort(options.sort, groupsData);
     };
 
-    Groups.sort = function (strategy, groups) {
+    Groups.sort = function (strategy : string, groups : GroupGroups) {
         switch (strategy) {
         case 'count':
             groups.sort((a, b) => a.slug > b.slug)
@@ -50,7 +80,7 @@ module.exports = function (Groups) {
         return groups;
     };
 
-    Groups.searchMembers = async function (data) {
+    Groups.searchMembers = async function (data : GroupData) {
         if (!data.query) {
             const users = await Groups.getOwnersAndMembers(data.groupName, data.uid, 0, 19);
             return { users: users };
