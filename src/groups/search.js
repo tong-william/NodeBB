@@ -38,17 +38,20 @@ function default_1(Groups) {
             else {
                 groupsData = yield Promise.resolve(Groups.getGroupsData(groupNames));
             }
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
             groupsData = groupsData.filter(Boolean);
             if (options.filterHidden) {
-                groupsData = groupsData.filter(group => !group.hidden);
+                // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+                groupsData = groupsData.filter((group) => (!group.hidden));
             }
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
             return Groups.sort(options.sort, groupsData);
         });
     };
     Groups.sort = function (strategy, groups) {
         switch (strategy) {
             case 'count':
-                groups.sort((a, b) => a.slug > b.slug)
+                (groups.sort((a, b) => a.slug > b.slug))
                     .sort((a, b) => b.memberCount - a.memberCount);
                 break;
             case 'date':

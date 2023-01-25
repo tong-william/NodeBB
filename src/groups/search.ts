@@ -31,8 +31,12 @@ interface GroupData {
     uid : number;
 }
 
+interface ginter {
+    hidden : boolean;
+}
+
 export default function (Groups : BigGroups) {
-    Groups.search = async function (query : string, options : GroupOptions) {
+    Groups.search = async function (query : string, options : GroupOptions) : Promise<string[]> {
         if (!query) {
             return [];
         }
@@ -54,17 +58,20 @@ export default function (Groups : BigGroups) {
         } else {
             groupsData = await Promise.resolve(Groups.getGroupsData(groupNames));
         }
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
         groupsData = groupsData.filter(Boolean) as string[];
         if (options.filterHidden) {
-            groupsData = groupsData.filter(group => !group.hidden);
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+            groupsData = groupsData.filter((group : ginter) => (!group.hidden)) as string[];
         }
-        return Groups.sort(options.sort, groupsData);
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+        return Groups.sort(options.sort, groupsData as string[]) as Promise<string[]>;
     };
 
     Groups.sort = function (strategy : string, groups : GroupGroups) {
         switch (strategy) {
         case 'count':
-            groups.sort((a, b) => a.slug > b.slug)
+            (groups.sort((a, b) => a.slug > b.slug))
                 .sort((a, b) => b.memberCount - a.memberCount);
             break;
 
