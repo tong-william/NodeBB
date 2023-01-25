@@ -1,16 +1,42 @@
-'use strict';
+import winston from 'winston';
 
-const winston = require('winston');
+import meta from '../meta';
+import emailer from '../emailer';
+import db from '../database';
+import groups from '../groups';
+import privileges from '../privileges';
 
-const meta = require('../meta');
-const emailer = require('../emailer');
-const db = require('../database');
-const groups = require('../groups');
-const privileges = require('../privileges');
+interface UserObject {
+    bans : BansObject;
+    setUserField: (uid: string, field: string, value: number) => Promise<void>;
+    getUserField: (uid: string, field: string,) => Promise<DataObject>;
+    getUsersFields: (uid: string, fields: string[]) => Promise<DataObject[]>;
+}
 
-module.exports = function (User) {
-    User.bans = {};
+interface BansObject {
+    ban;
+    unban;
+    isBanned;
+    canLoginIfBanned;
+    unbanIfExpired;
+    calcExpiredFromUserData;
+    filterBanned;
+    getReason;
+}
 
+interface DataObject {
+    uids: string[];
+    uid: string;
+}
+
+interface BanDataObject {
+    uid;
+    timestamp;
+    expire;
+    reason;
+}
+
+module.exports = function (User : UserObject) {
     User.bans.ban = async function (uid, until, reason) {
         // "until" (optional) is unix timestamp in milliseconds
         // "reason" (optional) is a string
@@ -25,11 +51,11 @@ module.exports = function (User) {
         }
 
         const banKey = `uid:${uid}:ban:${now}`;
-        const banData = {
+        const banData : BanDataObject = {
             uid: uid,
             timestamp: now,
             expire: until > now ? until : 0,
-        };
+        } as BanDataObject;
         if (reason) {
             banData.reason = reason;
         }
