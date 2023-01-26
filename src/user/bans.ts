@@ -1,17 +1,11 @@
-// import winston from 'winston';
 
-// import meta from '../meta';
-// import emailer from '../emailer';
-// import db from '../database';
-// import groups from '../groups';
-// import privileges from '../privileges';
-import winston = require('winston');
+import winston from 'winston';
 
-import meta = require('../meta');
-import emailer = require('../emailer');
-import db = require('../database');
-import groups = require('../groups');
-import privileges = require('../privileges');
+import meta from '../meta';
+import emailer from '../emailer';
+import db from '../database';
+import groups from '../groups';
+import privileges from '../privileges';
 
 interface UserObject {
     bans : BansObject;
@@ -23,7 +17,7 @@ interface UserObject {
 interface BansObject {
     ban;
     unban;
-    isBanned;
+    isBanned : (uids: string[]) => Promise<boolean | boolean[]>;
     canLoginIfBanned;
     unbanIfExpired : (uids: string[]) => Promise<{banned: boolean}[]>;
     calcExpiredFromUserData : (userData: DataObject[]) => Promise<{banned: boolean}[]>;
@@ -43,10 +37,10 @@ interface BanDataObject {
     uid;
     timestamp;
     expire : number;
-    reason;
+    reason : string;
 }
 
-module.exports = function (User : UserObject) {
+export default function (User : UserObject) {
     User.bans.ban = async function (uid : string, until : number, reason : string) {
         // "until" (optional) is unix timestamp in milliseconds
         // "reason" (optional) is a string
@@ -146,15 +140,13 @@ module.exports = function (User : UserObject) {
         const { banned } = (await User.bans.unbanIfExpired([uid]))[0];
         // Group privilege overshadows individual one
         if (banned) {
-            /* eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call,
-                @typescript-eslint/no-unsafe-assignment */
-            canLogin = await privileges.global.canGroup('local:login', groups.BANNED_USERS);
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+            canLogin = await privileges.global.canGroup('local:login', groups.BANNED_USERS) as boolean;
         }
         if (banned && !canLogin) {
             // Checking a single privilege of user
-            /* eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call,
-                @typescript-eslint/no-unsafe-assignment */
-            canLogin = await groups.isMember(uid, 'cid:0:privileges:local:login');
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+            canLogin = await groups.isMember(uid, 'cid:0:privileges:local:login') as boolean;
         }
 
         return canLogin;
@@ -169,15 +161,15 @@ module.exports = function (User : UserObject) {
     User.bans.calcExpiredFromUserData = async function (userData : DataObject[]) {
         const isArray = Array.isArray(userData);
         const uids = userData.map(u => u.uid);
-        /* eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call,
-            @typescript-eslint/no-unsafe-assignment */
-        const banned = await groups.isMembers(uids, groups.BANNED_USERS);
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+        const banned : boolean[] = await groups.isMembers(uids, groups.BANNED_USERS) as boolean[];
         const result = userData.map((userData : DataObject, index : number) => ({
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
             banned: banned[index],
             'banned:expire': userData && userData['banned:expire'],
             banExpired: userData && userData['banned:expire'] <= Date.now() && userData['banned:expire'] !== 0,
         }));
-        return isArray ? result : result['banned:expire'];
+        return isArray ? result : result;
     };
 
     User.bans.filterBanned = async function (uids : string[]) {
@@ -190,12 +182,12 @@ module.exports = function (User : UserObject) {
             return '';
         }
         // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
-        const keys = await db.getSortedSetRevRange(`uid:${uid}:bans:timestamp`, 0, 0);
+        const keys : string[] = await db.getSortedSetRevRange(`uid:${uid}:bans:timestamp`, 0, 0) as string[];
         if (!keys.length) {
             return '';
         }
         // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
-        const banObj = await db.getObject(keys[0]);
+        const banObj : BanDataObject = await db.getObject(keys[0]) as BanDataObject;
         return banObj && banObj.reason ? banObj.reason : '';
     };
-};
+}
