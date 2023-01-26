@@ -25,8 +25,8 @@ interface BansObject {
     unban;
     isBanned;
     canLoginIfBanned;
-    unbanIfExpired;
-    calcExpiredFromUserData;
+    unbanIfExpired : (uids: string[]) => Promise<{banned: boolean}[]>;
+    calcExpiredFromUserData : (userData: DataObject[]) => Promise<{banned: boolean}[]>;
     filterBanned;
     getReason;
 }
@@ -34,6 +34,9 @@ interface BansObject {
 interface DataObject {
     uids: string[];
     uid: string;
+    'email:confirmed' : string;
+    'banned:expire': number;
+    map ;
 }
 
 interface BanDataObject {
@@ -131,56 +134,58 @@ module.exports = function (User : UserObject) {
         await db.sortedSetRemove(['users:banned', 'users:banned:expire'], uids);
     };
 
-    User.bans.isBanned = async function (uids) {
-        const isArray = Array.isArray(uids);
-        uids = isArray ? uids : [uids];
-        const result = await User.bans.unbanIfExpired(uids);
-        return isArray ? result.map(r => r.banned) : result[0].banned;
+    User.bans.isBanned = async function (uids : string[]) {
+        uids = Array.isArray(uids) ? uids : [uids];
+        const result : {banned: boolean}[] = await User.bans.unbanIfExpired(uids);
+        return Array.isArray(uids) ? result.map(r => r.banned) : result[0].banned;
     };
 
-    User.bans.canLoginIfBanned = async function (uid) {
+    User.bans.canLoginIfBanned = async function (uid : string) {
         let canLogin = true;
 
         const { banned } = (await User.bans.unbanIfExpired([uid]))[0];
         // Group privilege overshadows individual one
         if (banned) {
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+            /* eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call,
+                @typescript-eslint/no-unsafe-assignment */
             canLogin = await privileges.global.canGroup('local:login', groups.BANNED_USERS);
         }
         if (banned && !canLogin) {
             // Checking a single privilege of user
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+            /* eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call,
+                @typescript-eslint/no-unsafe-assignment */
             canLogin = await groups.isMember(uid, 'cid:0:privileges:local:login');
         }
 
         return canLogin;
     };
 
-    User.bans.unbanIfExpired = async function (uids) {
+    User.bans.unbanIfExpired = async function (uids : string[]) {
         // loading user data will unban if it has expired -barisu
         const userData = await User.getUsersFields(uids, ['banned:expire']);
         return User.bans.calcExpiredFromUserData(userData);
     };
 
-    User.bans.calcExpiredFromUserData = async function (userData) {
+    User.bans.calcExpiredFromUserData = async function (userData : DataObject[]) {
         const isArray = Array.isArray(userData);
-        userData = isArray ? userData : [userData];
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
-        const banned = await groups.isMembers(userData.map(u => u.uid), groups.BANNED_USERS);
-        userData = userData.map((userData, index) => ({
+        const uids = userData.map(u => u.uid);
+        /* eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call,
+            @typescript-eslint/no-unsafe-assignment */
+        const banned = await groups.isMembers(uids, groups.BANNED_USERS);
+        const result = userData.map((userData : DataObject, index : number) => ({
             banned: banned[index],
             'banned:expire': userData && userData['banned:expire'],
             banExpired: userData && userData['banned:expire'] <= Date.now() && userData['banned:expire'] !== 0,
         }));
-        return isArray ? userData : userData[0];
+        return isArray ? result : result['banned:expire'];
     };
 
-    User.bans.filterBanned = async function (uids) {
+    User.bans.filterBanned = async function (uids : string[]) {
         const isBanned = await User.bans.isBanned(uids);
         return uids.filter((uid, index) => !isBanned[index]);
     };
 
-    User.bans.getReason = async function (uid) {
+    User.bans.getReason = async function (uid : string) {
         if (parseInt(uid, 10) <= 0) {
             return '';
         }
